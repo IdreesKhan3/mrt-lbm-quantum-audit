@@ -115,7 +115,6 @@ Muhammad Idrees Khan and Hua-Dong Yao,
 "A Reproducible D3Q19 MRT Lattice-Boltzmann Benchmark and Quantum-Operator Audit
 for Forced Wall-Bounded Flow Simulations," 2026.
 ```
-Add volume, pages, and DOI when the article is published.
 
 ## License
 
