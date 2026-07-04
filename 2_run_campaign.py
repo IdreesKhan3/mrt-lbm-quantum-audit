@@ -152,7 +152,7 @@ def print_cases(cases):
 # --- CLI ---
 
 def main():
-    """Parse arguments and execute the verification campaign."""
+    """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Run MRT channel verification campaign."
     )

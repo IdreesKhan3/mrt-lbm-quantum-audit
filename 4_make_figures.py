@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate publication PDF figures from paper_tables and case .npz files."""
+"""Generate PDF figures from paper_tables and case .npz files."""
 
 import argparse
 import csv
@@ -19,13 +19,16 @@ FIG_DIR = "figures"
 FIG_DPI = 600
 
 SINGLE_COL = (3.5, 2.65)  # single-column size (in)
+GRID_PROFILES = (3.5, 4.35)  # taller canvas: y extends to 64 for finest grid
 WIDE_COL = (5.5, 2.0)
 
-# Figure colors
+# Colorblind-safe palette
 C_NUM = "#2166ac"
 C_EXACT = "#b2182b"
 C_GRID = ["#2166ac", "#4393c3", "#92c5de", "#1b7837"]
 C_LINES = ["#2166ac", "#d6604d", "#4daf4a", "#984ea3", "#ff7f00"]
+# Figure 3 grid profiles: blue, orange, green, purple
+C_PROFILES = [C_LINES[0], C_LINES[4], C_LINES[2], C_LINES[3]]
 
 
 # --- Plot style ---
@@ -94,7 +97,7 @@ def format_log_axis(ax, axis="both"):
 
 
 def format_power_axis(ax, axis="y", mantissa_decimals=3):
-    """Format axis ticks as $m \\times 10^{n}$."""
+    """Mathtext $m \\times 10^{n}$ tick labels (matches log-figure style on linear axes)."""
 
     def _fmt(value, _pos):
         if value == 0:
@@ -182,8 +185,29 @@ def case_row(rows, case_id):
     return None
 
 
-def find_npz(row):
+def resolve_outdir(row):
+    """Resolve case output directory, with fallbacks for relocated results."""
     outdir = Path(sval(row, "outdir"))
+    case_id = sval(row, "case_id")
+    script_dir = Path(__file__).resolve().parent
+
+    candidates = [
+        outdir,
+        outdir.resolve(),
+        script_dir / outdir,
+        script_dir / "results" / case_id,
+        script_dir / "results" / outdir.name,
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return outdir
+
+
+def find_npz(row):
+    outdir = resolve_outdir(row)
     if not outdir.exists():
         return None
 
@@ -378,14 +402,14 @@ def savefig(path, tight=True):
 # --- Figures ---
 
 def fig1_algorithm(fig_dir):
-    """Draw the LBM timestep schematic."""
+    """Timestep schematic (algorithm_schematic.pdf)."""
     steps = [
         (r"$f_i$", 0.70),
         (r"$\rho$, $\mathbf{u}$", 0.95),
         (r"$\mathbf{m}=M\mathbf{f}$", 1.15),
         (r"$\mathbf{m}^{\mathrm{eq}}$", 1.05),
         ("MRT collision", 1.25),
-        ("Forcing", 1.15),
+        ("Guo forcing", 1.15),
         (r"$f_i^{\,\mathrm{post}}$", 1.05),
         ("Streaming", 1.15),
         ("Bounce-back", 1.20),
@@ -463,7 +487,7 @@ def fig1_algorithm(fig_dir):
         eq_x,
         0.38,
         r"$\mathbf{m}^{\mathrm{post}} = \mathbf{m} - S(\mathbf{m}-\mathbf{m}^{\mathrm{eq}})"
-        r" + \left(I-S/2\right)M\mathbf{F}_i$",
+        r" + \left(I-S/2\right)M\boldsymbol{\Phi}$",
         ha="center",
         va="center",
         fontsize=eq_fs,
@@ -473,7 +497,7 @@ def fig1_algorithm(fig_dir):
 
 
 def fig2_baseline(rows, fig_dir):
-    """Baseline velocity profile versus the analytical Poiseuille solution."""
+    """Baseline profile vs analytic (baseline_profile.pdf)."""
     row = case_row(rows, "A1_baseline_rest")
     if row is None:
         print("missing A1_baseline_rest")
@@ -515,7 +539,7 @@ def fig2_baseline(rows, fig_dir):
 
 
 def fig3_grid(rows, fig_dir):
-    """Grid convergence of the relative $L_2$ profile error."""
+    """Grid convergence of L2 error (grid_convergence.pdf)."""
     data = []
 
     for row in case_rows(rows, "B_grid_convergence"):
@@ -573,7 +597,7 @@ def fig3_grid(rows, fig_dir):
 
 
 def fig4_centerline(rows, fig_dir):
-    """Centerline velocity history for the initialization study."""
+    """Centerline history for E cases (centerline_history.pdf)."""
     wanted = ["E1_rest", "E2_parabolic"]
     plotted = False
 
@@ -637,7 +661,6 @@ def fig4_centerline(rows, fig_dir):
 
 
 def fig5_tau(rows, fig_dir):
-    """Relaxation-time sensitivity of the profile error."""
     data = []
 
     for row in case_rows(rows, "C_tau_sweep"):
@@ -674,7 +697,6 @@ def fig5_tau(rows, fig_dir):
 
 
 def fig6_force(rows, fig_dir):
-    """Forcing-strength sensitivity of the profile error."""
     data = []
 
     for row in case_rows(rows, "D_force_sweep"):
@@ -721,7 +743,6 @@ def fig6_force(rows, fig_dir):
 
 
 def fig7_wall_metrics(rows, fig_dir):
-    """Wall slip, mass conservation, and wall-normal leakage across all cases."""
     data = []
 
     group_order = [
@@ -811,11 +832,10 @@ def fig7_wall_metrics(rows, fig_dir):
 
 
 def fig_profiles_all_grids(rows, fig_dir):
-    """Streamwise velocity profiles for all grid-refinement cases."""
     grid_rows = case_rows(rows, "B_grid_convergence")
     plotted = False
 
-    fig, ax = plt.subplots(figsize=SINGLE_COL)
+    fig, ax = plt.subplots(figsize=GRID_PROFILES)
 
     for idx, row in enumerate(sorted(grid_rows, key=lambda r: fval(r, "ny"))):
         npz_path = find_npz(row)
@@ -828,15 +848,16 @@ def fig_profiles_all_grids(rows, fig_dir):
         if y is None or num is None:
             continue
 
-        color = C_GRID[idx % len(C_GRID)]
+        color = C_PROFILES[idx % len(C_PROFILES)]
         ax.plot(
             num,
             y,
-            "o",
+            "-o",
             color=color,
-            markersize=4.0,
+            linewidth=1.1,
+            markersize=4.2,
             markerfacecolor="white",
-            markeredgewidth=0.8,
+            markeredgewidth=0.85,
             label=short_case_label(row),
         )
         plotted = True
@@ -848,16 +869,24 @@ def fig_profiles_all_grids(rows, fig_dir):
 
     ax.set_xlabel(r"Streamwise velocity, $u_x$")
     ax.set_ylabel(r"Wall-normal coordinate, $y$")
-    ax.legend(loc="best")
+    ax.set_ylim(bottom=0)
+    ax.legend(
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.01),
+        ncol=4,
+        columnspacing=1.0,
+        handletextpad=0.45,
+    )
     style_axes(ax)
+    fig.subplots_adjust(top=0.88, bottom=0.09, left=0.15, right=0.98)
 
-    savefig(Path(fig_dir) / "grid_profiles.pdf")
+    savefig(Path(fig_dir) / "grid_profiles.pdf", tight=False)
 
 
 # --- CLI ---
 
 def main():
-    """Parse arguments and generate all figures."""
+    """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Build paper figures from collected tables."
     )

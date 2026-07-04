@@ -303,7 +303,7 @@ def filter_group(rows, group):
 # --- CLI ---
 
 def main():
-    """Parse arguments and write summary CSV tables."""
+    """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Collect campaign results into CSV tables."
     )

@@ -47,8 +47,8 @@ OPERATOR_ROWS = [
         "main_issue": "requires nonlinear arithmetic from encoded flow fields",
     },
     {
-        "lbm_step": "Body-force forcing",
-        "classical_operation": "compute F_i, transform M F_i, apply (I-S/2)M F_i",
+        "lbm_step": "Guo forcing",
+        "classical_operation": "compute Phi_i, transform M Phi, apply (I-S/2) Phi_m",
         "quantum_interpretation": "source-term operation depending on u and F",
         "difficulty": "high",
         "main_issue": "velocity-dependent forcing and non-unitary source update",
@@ -213,7 +213,7 @@ def make_qubit_rows(grids):
 # --- CLI ---
 
 def main():
-    """Parse arguments and write quantum audit tables."""
+    """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Export quantum audit tables (CSV and Markdown)."
     )

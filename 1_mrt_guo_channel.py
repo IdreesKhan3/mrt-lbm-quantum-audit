@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""D3Q19 MRT-LBM channel solver: periodic x/z, no-slip y walls, body-force forcing in moment space."""
+"""D3Q19 MRT-LBM channel solver: periodic x/z, no-slip y walls, Guo forcing in moment space."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ rho0 = 1.0
 cs2 = 1.0 / 3.0
 cs4 = cs2 * cs2
 
-# Conserved moments (m0, jx, jy, jz): forcing added as m + F_m, not via (I - S/2).
+# Conserved moments (m0, jx, jy, jz): forcing added as m + phi_m, not via (I - S/2).
 CONSERVED_MOMENT_MASK = jnp.array(
     [True] + [False] * 2 + [True] + [False] + [True] + [False] + [True]
     + [False] * 11
@@ -337,19 +337,19 @@ def run_ref_mrt_channel(
         u_dot_F = jnp.sum(u * F_field, axis=-1)
         c_dot_F = jnp.einsum("dQ,ijkd->ijkQ", NODE_VELOCITIES, F_field)
         c_dot_u = jnp.einsum("dQ,ijkd->ijkQ", NODE_VELOCITIES, u)
-        F_i = W * (
+        phi_i = W * (
             (1.0 / cs2) * (c_dot_F - u_dot_F[..., None])
             + (1.0 / cs4) * c_dot_u * c_dot_F
         )
 
-        F_m = jnp.einsum("ab,ijkb->ijka", M, F_i)
+        phi_m = jnp.einsum("ab,ijkb->ijka", M, phi_i)
 
         dm = m - m_eq
         m_relaxed = m - s_vec[None, None, None, :] * dm
         m_with_force = (
-            m_relaxed + (1.0 - 0.5 * s_vec[None, None, None, :]) * F_m
+            m_relaxed + (1.0 - 0.5 * s_vec[None, None, None, :]) * phi_m
         )
-        m_post = jnp.where(CONSERVED_MOMENT_MASK, m + F_m, m_with_force)
+        m_post = jnp.where(CONSERVED_MOMENT_MASK, m + phi_m, m_with_force)
         f_post = jnp.einsum("ab,ijkb->ijka", invM, m_post)
 
         f_streamed = stream_bounceback_y(f_post)
@@ -520,7 +520,7 @@ def _json_safe_summary(result: dict) -> dict:
 
 
 def main() -> int:
-    """Parse arguments and run the channel solver."""
+    """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="D3Q19 MRT channel-flow reference solver."
     )
